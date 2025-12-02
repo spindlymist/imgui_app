@@ -41,6 +41,12 @@ pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> I
     context.set_ini_filename(None);
     context.set_log_filename(None);
     
+    // Use FreeType for font rasterization
+    unsafe {
+        use imgui::internal::RawCast;
+        context.fonts().raw_mut().FontBuilderIO = imgui::sys::ImGuiFreeType_GetBuilderForFreeType();
+    }
+    
     let ui_font = context.fonts().add_font(&[
         imgui::FontSource::TtfData {
             data: include_bytes!("../resources/FiraSans-Regular.ttf"),
