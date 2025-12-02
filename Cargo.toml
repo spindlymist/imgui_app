@@ -1,0 +1,19 @@
+[package]
+name = "imgui_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+byteorder-lite = "0.1.0"
+image = "0.25.8"
+imgui = { version = "0.12.0", features = ["tables-api", "docking", "freetype"] }
+imgui-sys = { version = "0.12.0", features = ["docking", "freetype", "use-vcpkg"] }
+imgui-sdl2-support = "0.13.0"
+imgui-wgpu = { git = "https://github.com/CrushedPixel/imgui-wgpu-rs/", branch = "idx-offset" }
+png = "0.18.0"
+pollster = "0.4.0"
+raw-window-handle = "0.6.2"
+rfd = { version = "0.15.4", default-features = false, features = ["gtk3"] }
+sdl2 = { version = "0.37.0", features = ["raw-window-handle", "bundled", "static-link"] }
+thiserror = "2.0.17"
+wgpu = "25.0.0"
