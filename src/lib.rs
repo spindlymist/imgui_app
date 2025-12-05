@@ -2,12 +2,14 @@ mod textures;
 mod png_decoder;
 mod platform;
 mod renderer;
+mod extensions;
 
 use std::time::Instant;
 
 pub use platform::{PlatformState, platform_init};
 pub use renderer::{RendererState, renderer_init};
 pub use textures::{Textures, Texture};
+pub use extensions::ImguiCursorExt;
 
 pub use imgui;
 pub use sdl2;
