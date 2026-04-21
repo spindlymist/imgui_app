@@ -20,9 +20,12 @@ pub fn renderer_init<W>(window: &W, size: (u32, u32)) -> Result<RendererState, R
 where
     W: raw_window_handle::HasDisplayHandle + raw_window_handle::HasWindowHandle
 {
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN,
-        ..Default::default()
+        flags: wgpu::InstanceFlags::default(),
+        memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
+        backend_options: wgpu::BackendOptions::default(),
+        display: None,
     });
     let surface = unsafe {
         instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap())?
@@ -40,6 +43,7 @@ where
             required_features: wgpu::Features::empty(),
             memory_hints: Default::default(),
             trace: wgpu::Trace::Off,
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
         },
     ))?;
 

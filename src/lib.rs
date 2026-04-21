@@ -171,10 +171,25 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         // Prepare to render
         let draw_data = im_context.render();
         let frame = match renderer.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(err) => {
-                eprintln!("Failed to get current surface texture: {err}");
+            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Suboptimal(_)
+                | wgpu::CurrentSurfaceTexture::Outdated
+            => {
+                renderer.surface.configure(&renderer.device, &renderer.surface_config);
                 continue 'main_loop;
+            }
+            wgpu::CurrentSurfaceTexture::Timeout
+                | wgpu::CurrentSurfaceTexture::Occluded
+            => {
+                continue 'main_loop;
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                eprintln!("Warning: a validation error occurred while getting the current surface texture.");
+                continue 'main_loop;
+            }
+            wgpu::CurrentSurfaceTexture::Lost => {
+                eprintln!("Critical error: the window surface was lost.");
+                break 'main_loop;
             }
         };
         let render_target = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -189,6 +204,7 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &render_target,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,
@@ -197,6 +213,7 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             im_renderer.render(draw_data, &renderer.queue, &renderer.device, &mut render_pass)
                 .expect("Failed to render");
