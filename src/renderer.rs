@@ -8,6 +8,8 @@ pub struct RendererState {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RendererError {
+    #[error("Failed to get display or window handle.")]
+    Handle(#[from] raw_window_handle::HandleError),
     #[error("Failed to create surface.")]
     CreateSurface(#[from] wgpu::CreateSurfaceError),
     #[error("Failed to obtain adapter.")]
@@ -28,7 +30,8 @@ where
         display: None,
     });
     let surface = unsafe {
-        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap())?
+        let surface_target = wgpu::SurfaceTargetUnsafe::from_display_and_window(window, window)?;
+        instance.create_surface_unsafe(surface_target)?
     };
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::LowPower,
