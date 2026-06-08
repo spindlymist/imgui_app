@@ -7,8 +7,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let imgui = imgui_app::imgui_init(platform, renderer);
     
     imgui_app::run(imgui, |ui, ex| {
-        // ui.show_demo_window(&mut true);
-        
         let (width, height) = ex.window.size();
         let _border_size = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
         ui.window("Main")
@@ -23,6 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.text("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z");
                 ui.text("a b c d e f g h i j k l m n o p q r s t u v w x y z");
             });
+        
+        ui.show_demo_window(&mut true);
     });
     
     Ok(())

@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 byteorder-lite = "0.1.0"
-dear-imgui-rs = { version = "0.14.0", features = ["freetype", "multi-viewport"], default-features = false }
-dear-imgui-sdl3 = { version = "0.14.0", default-features = false }
-dear-imgui-wgpu = "0.14.0"
+dear-imgui-rs = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg", features = ["freetype", "multi-viewport"], default-features = false }
+dear-imgui-sdl3 = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg", default-features = false }
+dear-imgui-wgpu = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg" }
 image = "0.25.10"
 png = "0.18.1"
 pollster = "0.4.0"
@@ -15,4 +15,4 @@ raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
 sdl3 = { version = "0.18.4", features = ["build-from-source", "static-link", "raw-window-handle"] }
 thiserror = "2.0.18"
-wgpu = "29.0.1"
+wgpu = "29.0.3"
