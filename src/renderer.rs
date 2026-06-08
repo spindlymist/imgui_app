@@ -3,7 +3,7 @@ pub struct RendererState {
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
-    pub im_renderer: Option<imgui_wgpu::Renderer>,
+    pub backend: Option<dear_imgui_wgpu::WgpuRenderer>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -24,31 +24,21 @@ where
 {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN,
-        flags: wgpu::InstanceFlags::default(),
-        memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
-        backend_options: wgpu::BackendOptions::default(),
-        display: None,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
     let surface = unsafe {
         let surface_target = wgpu::SurfaceTargetUnsafe::from_display_and_window(window, window)?;
         instance.create_surface_unsafe(surface_target)?
     };
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::LowPower,
+        power_preference: wgpu::PowerPreference::HighPerformance,
         force_fallback_adapter: false,
         compatible_surface: Some(&surface),
     }))?;
     
-    let (device, queue) = pollster::block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: Some("device"),
-            required_limits: wgpu::Limits::default(),
-            required_features: wgpu::Features::empty(),
-            memory_hints: Default::default(),
-            trace: wgpu::Trace::Off,
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
-        },
-    ))?;
+    let (device, queue) = pollster::block_on(
+        adapter.request_device(&wgpu::DeviceDescriptor::default())
+    )?;
 
     let surface_caps = surface.get_capabilities(&adapter);
     let surface_format = surface_caps
@@ -68,12 +58,12 @@ where
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
-
+    
     Ok(RendererState {
         device,
         queue,
         surface,
         surface_config,
-        im_renderer: None,
+        backend: None,
     })
 }

@@ -4,18 +4,18 @@ mod platform;
 mod renderer;
 mod extensions;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub use platform::{PlatformState, platform_init};
 pub use renderer::{RendererState, renderer_init};
 pub use textures::{Textures, Texture};
 pub use extensions::ImguiCursorExt;
 
-pub use imgui;
-pub use sdl2;
-pub use imgui_sdl2_support;
+pub use dear_imgui_rs;
+pub use dear_imgui_sdl3;
+pub use dear_imgui_wgpu;
+pub use sdl3;
 pub use wgpu;
-pub use imgui_wgpu;
 
 const IDLE_FPS: f64 = 60.0;
 const IDLE_FRAME_DURATION_MS: f64 = 1000.0 / IDLE_FPS;
@@ -23,65 +23,65 @@ const IDLE_FRAME_DURATION_MS: f64 = 1000.0 / IDLE_FPS;
 pub struct ImguiState {
     pub platform: PlatformState,
     pub renderer: RendererState,
-    pub context: imgui::Context,
+    pub imgui: dear_imgui_rs::Context,
     pub fonts: Fonts,
 }
 
 pub struct Fonts {
-    pub ui: imgui::FontId,
-    pub mono: imgui::FontId,
+    pub ui: dear_imgui_rs::FontId,
+    pub mono: dear_imgui_rs::FontId,
 }
 
 pub struct Extras<'a> {
-    pub window: &'a sdl2::video::Window,
+    pub window: &'a sdl3::video::Window,
     pub fonts: &'a Fonts,
-    pub textures: &'a mut Textures<'a>,
+    pub textures: &'a mut Textures,
 }
 
 pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> ImguiState {
-    let mut context = imgui::Context::create();
-    context.set_ini_filename(None);
-    context.set_log_filename(None);
+    let mut imgui = dear_imgui_rs::Context::create();
     
-    // Use FreeType for font rasterization
-    unsafe {
-        use imgui::internal::RawCast;
-        context.fonts().raw_mut().FontBuilderIO = imgui::sys::ImGuiFreeType_GetBuilderForFreeType();
+    // Configure imgui
+    {
+        let mut flags = imgui.io_mut().config_flags();
+        flags |= dear_imgui_rs::ConfigFlags::NAV_ENABLE_KEYBOARD;
+        imgui.io_mut().set_config_flags(flags);
+        
+        let _ = imgui.set_ini_filename(None::<String>);
+        let _ = imgui.set_log_filename(None::<String>);
+        
+        imgui.style_mut().set_font_scale_dpi(platform.scale);
+        imgui.style_mut().set_color(dear_imgui_rs::StyleColor::ModalWindowDimBg, [0.0, 0.0, 0.0, 0.95]);
     }
     
-    let ui_font = context.fonts().add_font(&[
-        imgui::FontSource::TtfData {
-            data: include_bytes!("../resources/FiraSans-Regular.ttf"),
-            size_pixels: 19.0,
-            config: None,
-        }
-    ]);
-    
-    let mono_font = context.fonts().add_font(&[
-        imgui::FontSource::TtfData {
-            data: include_bytes!("../resources/FiraCode-Regular.ttf"),
-            size_pixels: 19.0,
-            config: None,
-        }
-    ]);
-    
-    let fonts = Fonts {
-        ui: ui_font,
-        mono: mono_font,
-    };
-    
-    let imgui_platform = imgui_sdl2_support::SdlPlatform::new(&mut context);
-    platform.im_platform = Some(imgui_platform);
+    // Create the platform backend
+    {
+        let platform_backend = dear_imgui_sdl3::Sdl3PlatformBackend::init_for_vulkan(
+            &mut imgui,
+            &platform.window,
+        ).unwrap();
+        platform.backend = Some(platform_backend);
+        
+        let flags = imgui.io_mut().backend_flags();
+        imgui.io_mut().set_backend_flags(flags);
+    }
 
-    let renderer_config = imgui_wgpu::RendererConfig {
-        texture_format: renderer.surface_config.format,
-        ..Default::default()
-    };
-    let imgui_renderer = imgui_wgpu::Renderer::new(&mut context, &renderer.device, &renderer.queue, renderer_config);
-    renderer.im_renderer = Some(imgui_renderer);
+    // Create the rendering backend
+    {
+        let renderer_info = dear_imgui_wgpu::WgpuInitInfo::new(
+            renderer.device.clone(),
+            renderer.queue.clone(),
+            renderer.surface_config.format,
+        );
+        let mut render_backend = dear_imgui_wgpu::WgpuRenderer::new(renderer_info, &mut imgui).unwrap();
+        render_backend.set_gamma_mode(dear_imgui_wgpu::GammaMode::Auto);
+        renderer.backend = Some(render_backend);
+    }
 
+    let fonts = create_fonts(&mut imgui);
+    
     ImguiState {
-        context,
+        imgui,
         platform,
         renderer,
         fonts,
@@ -89,27 +89,26 @@ pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> I
 }
 
 pub fn run<F>(imgui: ImguiState, mut build: F) where
-    F: FnMut(&imgui::Ui, Extras)
+    F: FnMut(&dear_imgui_rs::Ui, Extras)
 {
-    use sdl2::event::{Event, WindowEvent};
+    use sdl3::event::{Event, WindowEvent};
     
-    let ImguiState { mut platform, mut renderer, context: mut im_context, fonts } = imgui;
+    let ImguiState { mut platform, mut renderer, mut imgui, fonts } = imgui;
     let event_pump = &mut platform.event_pump;
     let window = &mut platform.window;
-    let im_platform = platform.im_platform.as_mut().expect("Platform should be initialized");
-    let im_renderer = renderer.im_renderer.as_mut().expect("Renderer should be initialized");
+    let mut platform_backend = platform.backend.take().expect("Platform should be initialized");
+    let mut render_backend = renderer.backend.take().expect("Renderer should be initialized");
+    let mut textures = Textures::new(&renderer.device);
     
-    let mut last_frame_start = Instant::now();
     let mut is_in_background = false;
-    
-    // ui.push_style_color() doesn't work
-    im_context.style_mut().colors[imgui::StyleColor::ModalWindowDimBg as usize] = [0.0, 0.0, 0.0, 0.95];
+    let mut last_frame_start = Instant::now();
     
     'main_loop: loop {
         // Calculate how long to wait for the next event without missing fps target
-        let last_frame_duration_ms = (Instant::now() - last_frame_start).as_secs_f64() * 1000.0;
-        let wait_ms = f64::max(0.0, f64::round(IDLE_FRAME_DURATION_MS - last_frame_duration_ms)) as u32;
-        let first_event = event_pump.wait_event_timeout(wait_ms);
+        let last_frame_duration_s = (Instant::now() - last_frame_start).as_secs_f64();
+        let last_frame_duration_ms = last_frame_duration_s * 1000.0;
+        let wait_ms = f64::max(0.0, f64::round(IDLE_FRAME_DURATION_MS - last_frame_duration_ms)) as u64;
+        let first_event = event_pump.wait_event_timeout(Duration::from_millis(wait_ms));
         last_frame_start = Instant::now();
         
         // Process events
@@ -118,7 +117,9 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 .into_iter()
                 .chain(event_pump.poll_iter());
             for event in events {
-                im_platform.handle_event(&mut im_context, &event);
+                if let Some(event_ll) = event.to_ll() {
+                    platform_backend.process_event(&mut imgui, &event_ll);
+                }
                 
                 if let Event::Window { window_id, .. } = event
                     && window_id != window.id()
@@ -127,10 +128,14 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 }
                 
                 match event {
-                    Event::Window { win_event: WindowEvent::SizeChanged(width, height), .. } => {
-                        renderer.surface_config.width = width as u32;
-                        renderer.surface_config.height = height as u32;
-                        renderer.surface.configure(&renderer.device, &renderer.surface_config);
+                    Event::Window { win_event: WindowEvent::Resized(width, height), .. } => {
+                        if width > 0 && height > 0 {
+                            renderer.surface_config.width = width as u32;
+                            renderer.surface_config.height = height as u32;
+                            renderer.surface.configure(&renderer.device, &renderer.surface_config);
+                            println!("Resized surface: {}x{}", renderer.surface_config.width,
+                                renderer.surface_config.height);
+                        }
                     }
                     Event::Window { win_event: WindowEvent::Minimized, .. } => {
                         is_in_background = true;
@@ -149,17 +154,16 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
             continue;
         }
         
-        // Prepare for new frame
-        im_platform.prepare_frame(&mut im_context, window, event_pump);
-        let ui = im_context.new_frame();
-        
-        // Build UI
+        imgui.io_mut().set_delta_time(last_frame_duration_s as f32);
+        imgui.io_mut().set_display_size([
+            renderer.surface_config.width as f32 * platform.scale,
+            renderer.surface_config.height as f32 * platform.scale,
+        ]);
+        platform_backend.new_frame(&mut imgui);
+            
+        // Build the UI
         {
-            let mut textures = Textures {
-                renderer: im_renderer,
-                device: &renderer.device,
-                queue: &renderer.queue,
-            };
+            let ui = imgui.frame();
             let extras = Extras {
                 window,
                 fonts: &fonts,
@@ -168,36 +172,29 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
             build(ui, extras);
         }
         
-        // Prepare to render
-        let draw_data = im_context.render();
-        let frame = match renderer.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Suboptimal(_)
-                | wgpu::CurrentSurfaceTexture::Outdated
-            => {
+        // Register new textures
+        textures.register_textures(&mut imgui);
+        
+        // Prepare to render the next frame
+        let (frame, reconfigure_after_present) = match renderer.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
+            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 renderer.surface.configure(&renderer.device, &renderer.surface_config);
                 continue 'main_loop;
             }
-            wgpu::CurrentSurfaceTexture::Timeout
-                | wgpu::CurrentSurfaceTexture::Occluded
-            => {
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
                 continue 'main_loop;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
                 eprintln!("Warning: a validation error occurred while getting the current surface texture.");
                 continue 'main_loop;
             }
-            wgpu::CurrentSurfaceTexture::Lost => {
-                eprintln!("Critical error: the window surface was lost.");
-                break 'main_loop;
-            }
         };
         let render_target = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = renderer.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("command encoder"),
-        });
+        let mut encoder = renderer.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-        // Render imgui
+        // Render pass: render imgui
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -215,12 +212,69 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            im_renderer.render(draw_data, &renderer.queue, &renderer.device, &mut render_pass)
-                .expect("Failed to render");
+            
+            let draw_data = imgui.render();
+            match render_backend.new_frame() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("Failed to render: {err}");
+                    continue 'main_loop;
+                }
+            }
+            match render_backend.render_draw_data_with_fb_size(
+                draw_data,
+                &mut render_pass,
+                renderer.surface_config.width,
+                renderer.surface_config.height,
+            ) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("Failed to render: {err}");
+                    continue 'main_loop;
+                }
+            }
         }
 
         // Submit commands and present next frame
         renderer.queue.submit([encoder.finish()]);
         frame.present();
+        
+        if reconfigure_after_present {
+            renderer.surface.configure(&renderer.device, &renderer.surface_config);
+        }
+    }
+    
+    render_backend.shutdown();
+    platform_backend.shutdown(&mut imgui);
+}
+
+fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
+    let mut fonts = imgui.font_atlas_mut();
+    
+    // unsafe {
+    //     let atlas = fonts.raw();
+    //     let loader = dear_imgui_sys::ImGuiFreeType_GetFontLoader();
+    //     dear_imgui_rs::sys::ImFontAtlas_SetFontLoader(atlas, loader);
+    // }
+    
+    let ui_font = fonts.add_font(&[
+        dear_imgui_rs::FontSource::TtfData {
+            data: include_bytes!("../resources/FiraSans-Regular.ttf"),
+            size_pixels: Some(19.0),
+            config: None,
+        }
+    ]);
+    
+    let mono_font = fonts.add_font(&[
+        dear_imgui_rs::FontSource::TtfData {
+            data: include_bytes!("../resources/FiraCode-Regular.ttf"),
+            size_pixels: Some(19.0),
+            config: None,
+        }
+    ]);
+    
+    Fonts {
+        ui: ui_font,
+        mono: mono_font,
     }
 }

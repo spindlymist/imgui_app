@@ -1,4 +1,4 @@
-use imgui::Ui;
+use dear_imgui_rs::Ui;
 
 pub trait ImguiCursorExt {
     fn move_cursor(&self, delta: [f32; 2]);
