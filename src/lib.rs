@@ -141,7 +141,7 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         }
         
         // Idle
-        if !did_process_event {
+        if !did_process_event || is_in_background {
             let elapsed = Instant::now() - last_frame_start;
             if elapsed < IDLE_FRAME_DURATION {
                 let sleep_duration = IDLE_FRAME_DURATION - elapsed;
@@ -149,6 +149,7 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
             }
         }
         if is_in_background {
+            last_frame_start = Instant::now();
             continue;
         }
         
