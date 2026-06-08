@@ -43,9 +43,9 @@ pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> I
     
     // Configure imgui
     {
-        let mut flags = imgui.io_mut().config_flags();
-        flags |= dear_imgui_rs::ConfigFlags::NAV_ENABLE_KEYBOARD;
-        imgui.io_mut().set_config_flags(flags);
+        // let mut flags = imgui.io_mut().config_flags();
+        // flags |= dear_imgui_rs::ConfigFlags::NAV_ENABLE_KEYBOARD;
+        // imgui.io_mut().set_config_flags(flags);
         
         let _ = imgui.set_ini_filename(None::<String>);
         let _ = imgui.set_log_filename(None::<String>);
