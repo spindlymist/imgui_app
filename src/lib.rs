@@ -18,7 +18,7 @@ pub use sdl3;
 pub use wgpu;
 
 const IDLE_FPS: f64 = 60.0;
-const IDLE_FRAME_DURATION_MS: f64 = 1000.0 / IDLE_FPS;
+const IDLE_FRAME_DURATION: Duration = Duration::from_micros((1_000_000.0 / IDLE_FPS) as u64);
 
 pub struct ImguiState {
     pub platform: PlatformState,
@@ -94,7 +94,6 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
     use sdl3::event::{Event, WindowEvent};
     
     let ImguiState { mut platform, mut renderer, mut imgui, fonts } = imgui;
-    let event_pump = &mut platform.event_pump;
     let window = &mut platform.window;
     let mut platform_backend = platform.backend.take().expect("Platform should be initialized");
     let mut render_backend = renderer.backend.take().expect("Renderer should be initialized");
@@ -104,63 +103,69 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
     let mut last_frame_start = Instant::now();
     
     'main_loop: loop {
-        // Calculate how long to wait for the next event without missing fps target
-        let last_frame_duration_s = (Instant::now() - last_frame_start).as_secs_f64();
-        let last_frame_duration_ms = last_frame_duration_s * 1000.0;
-        let wait_ms = f64::max(0.0, f64::round(IDLE_FRAME_DURATION_MS - last_frame_duration_ms)) as u64;
-        let first_event = event_pump.wait_event_timeout(Duration::from_millis(wait_ms));
-        last_frame_start = Instant::now();
+        let mut did_process_event = false;
         
         // Process events
-        if let Some(first_event) = first_event {
-            let events = [first_event]
-                .into_iter()
-                .chain(event_pump.poll_iter());
-            for event in events {
-                if let Some(event_ll) = event.to_ll() {
-                    platform_backend.process_event(&mut imgui, &event_ll);
-                }
-                
-                if let Event::Window { window_id, .. } = event
-                    && window_id != window.id()
-                {
-                    continue;
-                }
-                
-                match event {
-                    Event::Window { win_event: WindowEvent::Resized(width, height), .. } => {
-                        if width > 0 && height > 0 {
-                            renderer.surface_config.width = width as u32;
-                            renderer.surface_config.height = height as u32;
-                            renderer.surface.configure(&renderer.device, &renderer.surface_config);
-                            println!("Resized surface: {}x{}", renderer.surface_config.width,
-                                renderer.surface_config.height);
-                        }
-                    }
-                    Event::Window { win_event: WindowEvent::Minimized, .. } => {
-                        is_in_background = true;
-                    }
-                    Event::Window { win_event: WindowEvent::Exposed, .. } => {
-                        is_in_background = false;
+        while let Some(event_ll) = dear_imgui_sdl3::sdl3_poll_event_ll() {
+            did_process_event = true;
+            
+            platform_backend.process_event(&mut imgui, &event_ll);
+            let event = sdl3::event::Event::from_ll(event_ll);
+            
+            if let Event::Window { window_id, .. } = &event
+                && *window_id != window.id()
+            {
+                continue;
+            }
+            
+            match event {
+                Event::Window { win_event: WindowEvent::Resized(width, height), .. } => {
+                    if width > 0 && height > 0 {
+                        renderer.surface_config.width = width as u32;
+                        renderer.surface_config.height = height as u32;
                         renderer.surface.configure(&renderer.device, &renderer.surface_config);
+                        println!("Resized surface: {}x{}", renderer.surface_config.width,
+                            renderer.surface_config.height);
                     }
-                    Event::Quit { .. } => break 'main_loop,
-                    _ => {},
                 }
+                Event::Window { win_event: WindowEvent::Minimized, .. } => {
+                    is_in_background = true;
+                }
+                Event::Window { win_event: WindowEvent::Exposed, .. } => {
+                    is_in_background = false;
+                    renderer.surface.configure(&renderer.device, &renderer.surface_config);
+                }
+                Event::Quit { .. } => break 'main_loop,
+                _ => {},
             }
         }
         
+        // Idle
+        if !did_process_event {
+            let elapsed = Instant::now() - last_frame_start;
+            if elapsed < IDLE_FRAME_DURATION {
+                let sleep_duration = IDLE_FRAME_DURATION - elapsed;
+                std::thread::sleep(sleep_duration);
+            }
+        }
         if is_in_background {
             continue;
         }
         
-        imgui.io_mut().set_delta_time(last_frame_duration_s as f32);
-        imgui.io_mut().set_display_size([
-            renderer.surface_config.width as f32 * platform.scale,
-            renderer.surface_config.height as f32 * platform.scale,
-        ]);
-        platform_backend.new_frame(&mut imgui);
+        // Prepare the next frame
+        {
+            let now = Instant::now();
+            let elapsed = now - last_frame_start;
+            last_frame_start = now;
             
+            imgui.io_mut().set_delta_time(elapsed.as_secs_f32());
+            imgui.io_mut().set_display_size([
+                renderer.surface_config.width as f32 * platform.scale,
+                renderer.surface_config.height as f32 * platform.scale,
+            ]);
+            platform_backend.new_frame(&mut imgui);
+        }
+        
         // Build the UI
         {
             let ui = imgui.frame();

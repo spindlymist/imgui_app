@@ -3,7 +3,6 @@ pub struct PlatformState {
     pub sdl: sdl3::Sdl,
     pub video_subsystem: sdl3::VideoSubsystem,
     pub window: sdl3::video::Window,
-    pub event_pump: sdl3::EventPump,
     pub scale: f32,
     pub backend: Option<dear_imgui_sdl3::Sdl3PlatformBackend>,
 }
@@ -22,8 +21,6 @@ pub enum PlatformError {
     WindowWidthTooLarge(u32),
     #[error("The window's height was too large ({0}).")]
     WindowHeightTooLarge(u32),
-    #[error("Failed to obtain event pump: {0}")]
-    EventPump(sdl3::Error),
 }
 
 pub fn platform_init(title: &str, (width, height): (u32, u32)) -> Result<PlatformState, PlatformError> {
@@ -52,14 +49,12 @@ pub fn platform_init(title: &str, (width, height): (u32, u32)) -> Result<Platfor
             WindowBuildError::HeightOverflows(height) => PlatformError::WindowHeightTooLarge(height),
             WindowBuildError::InvalidTitle(err) => PlatformError::NulInWindowTitle(err),
         })?;
-    let event_pump = sdl.event_pump().map_err(PlatformError::EventPump)?;
     sdl3::hint::set("SDL_MOUSE_FOCUS_CLICKTHROUGH", "1");
     
     Ok(PlatformState {
         sdl,
         video_subsystem,
         window,
-        event_pump,
         scale,
         backend: None,
     })
