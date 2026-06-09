@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 byteorder-lite = "0.1.0"
-dear-imgui-rs = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg", features = ["freetype", "multi-viewport"], default-features = false }
-dear-imgui-sdl3 = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg", default-features = false }
-dear-imgui-wgpu = { git = "https://github.com/spindlymist/dear-imgui-rs", branch = "vcpkg" }
+dear-imgui-rs = { git = "https://github.com/Latias94/dear-imgui-rs", branch = "main", features = ["freetype", "multi-viewport"] }
+dear-imgui-sdl3 = { git = "https://github.com/Latias94/dear-imgui-rs", branch = "main", default-features = false }
+dear-imgui-wgpu = { git = "https://github.com/Latias94/dear-imgui-rs", branch = "main" }
 image = "0.25.10"
 png = "0.18.1"
 pollster = "0.4.0"
