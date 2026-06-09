@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 pub use platform::{PlatformState, platform_init};
 pub use renderer::{RendererState, renderer_init};
-pub use textures::{Textures, Texture};
+pub use textures::{Texture, Textures, TexturesPersistent};
 pub use extensions::ImguiCursorExt;
 
 pub use dear_imgui_rs;
@@ -35,7 +35,7 @@ pub struct Fonts {
 pub struct Extras<'a> {
     pub window: &'a sdl3::video::Window,
     pub fonts: &'a Fonts,
-    pub textures: &'a mut Textures,
+    pub textures: Textures<'a>,
 }
 
 pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> ImguiState {
@@ -97,7 +97,7 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
     let window = &mut platform.window;
     let mut platform_backend = platform.backend.take().expect("Platform should be initialized");
     let mut render_backend = renderer.backend.take().expect("Renderer should be initialized");
-    let mut textures = Textures::new(&renderer.device);
+    let mut textures = TexturesPersistent::new(&renderer.device);
     
     let mut is_in_background = false;
     let mut last_frame_start = Instant::now();
@@ -173,7 +173,12 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
             let extras = Extras {
                 window,
                 fonts: &fonts,
-                textures: &mut textures,
+                textures: Textures {
+                    persistent: &mut textures,
+                    renderer: &mut render_backend,
+                    device: &renderer.device,
+                    queue: &renderer.queue,
+                }
             };
             build(ui, extras);
         }
