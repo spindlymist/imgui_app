@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 pub use platform::{PlatformState, platform_init};
 pub use renderer::{RendererState, renderer_init};
 pub use textures::{Texture, Textures, TexturesPersistent};
-pub use extensions::ImguiCursorExt;
+pub use extensions::*;
 
 pub use dear_imgui_rs;
 pub use dear_imgui_sdl3;

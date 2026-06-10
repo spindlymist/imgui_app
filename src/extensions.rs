@@ -1,5 +1,20 @@
 use dear_imgui_rs::Ui;
 
+pub trait ImguiExt {
+    fn calc_text_size(&self, text: &str) -> [f32; 2];
+}
+
+impl ImguiExt for Ui {
+    fn calc_text_size(&self, text: &str) -> [f32; 2] {
+        self.current_font().calc_text_size(
+            self.current_font_size(),
+            f32::MAX,
+            0.0,
+            text
+        )
+    }
+}
+
 pub trait ImguiCursorExt {
     fn move_cursor(&self, delta: [f32; 2]);
     fn move_cursor_up(&self, delta: f32);
