@@ -354,7 +354,8 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 [[package]]
 name = "dear-imgui-build-support"
 version = "0.14.1"
-source = "git+https://github.com/Latias94/dear-imgui-rs?branch=main#477985c45818f0357292cb0ec3a34fb119d9ffa3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5765ed82c2ddf4795908f8f6bc46872ede1b6c91a983ccc40ebbcd0c8fcb8c2a"
 dependencies = [
  "pkg-config",
  "vcpkg",
@@ -363,7 +364,8 @@ dependencies = [
 [[package]]
 name = "dear-imgui-rs"
 version = "0.14.1"
-source = "git+https://github.com/Latias94/dear-imgui-rs?branch=main#477985c45818f0357292cb0ec3a34fb119d9ffa3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61f2299b39275e7bbd6fcb8dc229938b4da33b52108bc90cc0bae731afb41d16"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -378,7 +380,8 @@ dependencies = [
 [[package]]
 name = "dear-imgui-sdl3"
 version = "0.14.1"
-source = "git+https://github.com/Latias94/dear-imgui-rs?branch=main#477985c45818f0357292cb0ec3a34fb119d9ffa3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17b8916223dad9e039ea9486252fb4ab9afb35539c2a1bd3d84c34cd1ea9479c"
 dependencies = [
  "cc",
  "dear-imgui-build-support",
@@ -392,7 +395,8 @@ dependencies = [
 [[package]]
 name = "dear-imgui-sys"
 version = "0.14.1"
-source = "git+https://github.com/Latias94/dear-imgui-rs?branch=main#477985c45818f0357292cb0ec3a34fb119d9ffa3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c69b6cf3254358c3517b20dadab3a8c006bc92e6cf805c960e9f34fd1ce30a05"
 dependencies = [
  "cc",
  "cfg-if",
@@ -403,7 +407,8 @@ dependencies = [
 [[package]]
 name = "dear-imgui-wgpu"
 version = "0.14.1"
-source = "git+https://github.com/Latias94/dear-imgui-rs?branch=main#477985c45818f0357292cb0ec3a34fb119d9ffa3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8eb345e8113a57f7362487d1bfaa3171bae9e7f18d45c72f05c3da59a99d63e"
 dependencies = [
  "bytemuck",
  "dear-imgui-rs",
