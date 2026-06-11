@@ -271,7 +271,7 @@ fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
     let ui_font = fonts.add_font(&[
         dear_imgui_rs::FontSource::TtfData {
             data: include_bytes!("../resources/FiraSans-Regular.ttf"),
-            size_pixels: Some(19.0),
+            size_pixels: None,
             config: None,
         }
     ]);
@@ -279,7 +279,7 @@ fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
     let mono_font = fonts.add_font(&[
         dear_imgui_rs::FontSource::TtfData {
             data: include_bytes!("../resources/FiraCode-Regular.ttf"),
-            size_pixels: Some(19.0),
+            size_pixels: None,
             config: None,
         }
     ]);
