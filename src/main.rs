@@ -16,6 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .build(|| {
                 ui.text("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z");
                 ui.text("a b c d e f g h i j k l m n o p q r s t u v w x y z");
+                ui.new_line();
+                
+                ui.text("Now with symbols ⓘ ⛾⛿☯☸⛩⛰⛱⛴⛷⛸♸⚥☊☍☓☤🄰🄱🆈🆉⚖♇♪♬");
+                ui.new_line();
                 
                 let _mono_font = ui.push_font(ex.fonts.mono);
                 ui.text("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z");

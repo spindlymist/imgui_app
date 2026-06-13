@@ -29,7 +29,9 @@ pub struct ImguiState {
 
 pub struct Fonts {
     pub ui: dear_imgui_rs::FontId,
+    // pub ui_dynamic: dear_imgui_rs::FontId,
     pub mono: dear_imgui_rs::FontId,
+    // pub mono_dynamic: dear_imgui_rs::FontId,
 }
 
 pub struct Extras<'a> {
@@ -260,32 +262,35 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
 }
 
 fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
+    const FIRA_SANS_REGULAR: &[u8] = include_bytes!("../resources/FiraSans-Regular.ttf");
+    const FIRA_CODE_REGULAR: &[u8] = include_bytes!("../resources/FiraCode-Regular.ttf");
+    const NOTO_SANS_SYMBOLS_REGULAR: &[u8] = include_bytes!("../resources/NotoSansSymbols-Regular.ttf");
+    
     let mut fonts = imgui.font_atlas_mut();
     
-    // unsafe {
-    //     let atlas = fonts.raw();
-    //     let loader = dear_imgui_sys::ImGuiFreeType_GetFontLoader();
-    //     dear_imgui_rs::sys::ImFontAtlas_SetFontLoader(atlas, loader);
-    // }
-    
-    let ui_font = fonts.add_font(&[
+    let ui = fonts.add_font(&[
         dear_imgui_rs::FontSource::TtfData {
-            data: include_bytes!("../resources/FiraSans-Regular.ttf"),
-            size_pixels: None,
+            data: FIRA_SANS_REGULAR,
+            size_pixels: Some(19.0),
+            config: None,
+        },
+        dear_imgui_rs::FontSource::TtfData {
+            data: NOTO_SANS_SYMBOLS_REGULAR,
+            size_pixels: Some(34.0),
+            config: Some(dear_imgui_rs::FontConfig::new().merge_mode(true)),
+        }
+    ]);
+
+    let mono = fonts.add_font(&[
+        dear_imgui_rs::FontSource::TtfData {
+            data: FIRA_CODE_REGULAR,
+            size_pixels: Some(19.0),
             config: None,
         }
     ]);
-    
-    let mono_font = fonts.add_font(&[
-        dear_imgui_rs::FontSource::TtfData {
-            data: include_bytes!("../resources/FiraCode-Regular.ttf"),
-            size_pixels: None,
-            config: None,
-        }
-    ]);
-    
+
     Fonts {
-        ui: ui_font,
-        mono: mono_font,
+        ui,
+        mono,
     }
 }
