@@ -68,6 +68,13 @@ impl TexturesPersistent {
 }
 
 impl<'a> Textures<'a> {
+    pub fn create_texture_from_bytes(&mut self, width: u32, height: u32, data: &[u8]) -> u64 {
+        let mut texture_data = dear_imgui_rs::OwnedTextureData::new();
+        texture_data.create(dear_imgui_rs::TextureFormat::RGBA32, width, height);
+        texture_data.set_data(data);
+        self.insert_texture(texture_data)
+    }
+    
     pub fn create_texture_from_file(&mut self, path: &Path) -> Result<u64, CreateTextureError> {       
         let (image, intrinsic_width, intrinsic_height) = load_and_scale_image(path, self.persistent.max_size)?;
         let width = image.width();
@@ -96,8 +103,31 @@ impl<'a> Textures<'a> {
         Ok(id)
     }
     
+    pub fn insert_texture(&mut self, mut texture_data: dear_imgui_rs::OwnedTextureData) -> u64 {
+        if let Ok(texture_update) = self.renderer.texture_manager_mut()
+            .update_single_texture(&texture_data, self.device, self.queue)
+        {
+            texture_update.apply_to(&mut texture_data);
+        }
+        
+        let id = self.persistent.new_id();
+        self.persistent.textures_by_id.insert(id, Texture {
+            intrinsic_width: texture_data.width() as f32,
+            intrinsic_height: texture_data.height() as f32,
+            is_downscaled: false,
+            texture_data,
+        });
+        self.persistent.unregistered_textures.push(id);
+        
+        id
+    }
+    
     pub fn get_texture(&self, id: u64) -> Option<&Texture> {
         self.persistent.textures_by_id.get(&id)
+    }
+    
+    pub fn get_texture_mut(&mut self, id: u64) -> Option<&mut Texture> {
+        self.persistent.textures_by_id.get_mut(&id)
     }
     
     pub fn delete_texture(&mut self, id: u64) {
@@ -156,5 +186,25 @@ pub fn load_and_scale_image(path: &Path, max_size: u32) -> Result<(RgbaImage, u3
         let image_scaled = imageops::resize(&image_rgba, new_width, new_height, imageops::FilterType::CatmullRom);
 
         Ok((image_scaled, width, height))
+    }
+}
+
+impl Texture {
+    pub fn width(&self) -> f32 {
+        self.texture_data.width() as f32
+    }
+    
+    pub fn height(&self) -> f32 {
+        self.texture_data.height() as f32
+    }
+    
+    pub fn size(&self) -> [f32; 2] {
+        [self.width(), self.height()]
+    }
+}
+
+impl<'tex> From<&Texture> for dear_imgui_rs::TextureRef<'tex> {
+    fn from(texture: &Texture) -> Self {
+        texture.texture_data.as_ref().into()
     }
 }
