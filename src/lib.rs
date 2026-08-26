@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 pub use platform::{PlatformState, platform_init};
 pub use renderer::{RendererState, renderer_init};
-pub use textures::{Texture, Textures, TexturesPersistent};
+pub use textures::{TextureInfo, Textures, TexturesPersistent};
 pub use extensions::*;
 
 pub use dear_imgui_rs;
@@ -29,9 +29,7 @@ pub struct ImguiState {
 
 pub struct Fonts {
     pub ui: dear_imgui_rs::FontId,
-    // pub ui_dynamic: dear_imgui_rs::FontId,
     pub mono: dear_imgui_rs::FontId,
-    // pub mono_dynamic: dear_imgui_rs::FontId,
 }
 
 pub struct Extras<'a> {
@@ -64,10 +62,12 @@ pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> I
     
     // Create the platform backend
     {
-        let platform_backend = dear_imgui_sdl3::Sdl3PlatformBackend::init_for_vulkan(
-            &mut imgui,
-            &platform.window,
-        ).unwrap();
+        let platform_backend = unsafe {
+            dear_imgui_sdl3::Sdl3PlatformBackend::init_for_vulkan(
+                &mut imgui,
+                &platform.window,
+            ).unwrap()
+        };
         platform.backend = Some(platform_backend);
         
         let flags = imgui.io_mut().backend_flags();
@@ -114,12 +114,12 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         let mut did_process_event = false;
         
         // Process events
-        while let Some(event_ll) = dear_imgui_sdl3::sdl3_poll_event_ll() {
+        while let Some(event) = platform.event_pump.poll_event() {
             did_process_event = true;
-            
-            platform_backend.process_event(&mut imgui, &event_ll);
-            let event = sdl3::event::Event::from_ll(event_ll);
-            
+            if let Err(err) = platform_backend.process_event(&mut imgui, &event) {
+                eprintln!("Platform backend failed to process event: {err}");
+            }
+
             if let Event::Window { window_id, .. } = &event
                 && *window_id != window.id()
             {
@@ -172,7 +172,10 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 renderer.surface_config.width as f32 * platform.scale,
                 renderer.surface_config.height as f32 * platform.scale,
             ]);
-            platform_backend.new_frame(&mut imgui);
+            if let Err(err) = platform_backend.new_frame(&mut imgui) {
+                eprintln!("SDL3 platform backend failed to prepare for new frame: {err}");
+                continue 'main_loop;
+            }
         }
         
         // Build the UI
@@ -193,9 +196,6 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 Task::None => {}
             };
         }
-        
-        // Register new textures
-        textures.register_textures(&mut imgui);
         
         // Prepare to render the next frame
         let (frame, reconfigure_after_present) = match renderer.surface.get_current_texture() {
@@ -218,6 +218,15 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
 
         // Render pass: render imgui
         {
+            let pending_frame = match render_backend.renderer_consumer() {
+                Ok(consumer) => imgui.render(consumer),
+                Err(err) => {
+                    eprintln!("Failed to render: {err}");
+                    continue 'main_loop;
+                }
+            };
+            let framebuffer_extent = dear_imgui_wgpu::FramebufferExtent::from_texture(render_target.texture());
+            
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -235,19 +244,10 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                 multiview_mask: None,
             });
             
-            let draw_data = imgui.render();
-            match render_backend.new_frame() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Failed to render: {err}");
-                    continue 'main_loop;
-                }
-            }
-            match render_backend.render_draw_data_with_fb_size(
-                draw_data,
+            match render_backend.render(
+                pending_frame,
                 &mut render_pass,
-                renderer.surface_config.width,
-                renderer.surface_config.height,
+                framebuffer_extent
             ) {
                 Ok(_) => {}
                 Err(err) => {
@@ -259,15 +259,26 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
 
         // Submit commands and present next frame
         renderer.queue.submit([encoder.finish()]);
-        frame.present();
+        renderer.queue.present(frame);
         
         if reconfigure_after_present {
             renderer.surface.configure(&renderer.device, &renderer.surface_config);
         }
     }
     
-    render_backend.shutdown();
-    platform_backend.shutdown(&mut imgui);
+    Textures {
+        persistent: &mut textures,
+        renderer: &mut render_backend,
+        device: &renderer.device,
+        queue: &renderer.queue,
+    }.destroy_all_textures();
+    
+    if let Err(err) = render_backend.shutdown(&mut imgui) {
+        eprintln!("Failed to shut down render backend: {err}");
+    }
+    if let Err(err) = platform_backend.shutdown(&mut imgui) {
+        eprintln!("Failed to shut down platform backend: {err}");
+    }
 }
 
 fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
@@ -275,28 +286,19 @@ fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {
     const FIRA_CODE_REGULAR: &[u8] = include_bytes!("../resources/FiraCode-Regular.ttf");
     const NOTO_SANS_SYMBOLS_REGULAR: &[u8] = include_bytes!("../resources/NotoSansSymbols-Regular.ttf");
     
-    let mut fonts = imgui.font_atlas_mut();
-    
-    let ui = fonts.add_font(&[
-        dear_imgui_rs::FontSource::TtfData {
-            data: FIRA_SANS_REGULAR,
-            size_pixels: Some(19.0),
-            config: None,
-        },
-        dear_imgui_rs::FontSource::TtfData {
-            data: NOTO_SANS_SYMBOLS_REGULAR,
-            size_pixels: Some(34.0),
-            config: Some(dear_imgui_rs::FontConfig::new().merge_mode(true)),
-        }
-    ]);
-
-    let mono = fonts.add_font(&[
-        dear_imgui_rs::FontSource::TtfData {
-            data: FIRA_CODE_REGULAR,
-            size_pixels: Some(19.0),
-            config: None,
-        }
-    ]);
+    let fonts = imgui.font_atlas();
+    let ui = unsafe {
+        fonts.add_font(&[
+            dear_imgui_rs::FontSource::ttf_data_with_size(FIRA_SANS_REGULAR, 19.0),
+            dear_imgui_rs::FontSource::ttf_data_with_size(NOTO_SANS_SYMBOLS_REGULAR, 34.0)
+                .with_config(dear_imgui_rs::FontConfig::new().merge_mode(true))
+        ])
+    };
+    let mono = unsafe {
+        fonts.add_font(&[
+            dear_imgui_rs::FontSource::ttf_data_with_size(FIRA_CODE_REGULAR, 19.0),
+        ])
+    };
 
     Fonts {
         ui,

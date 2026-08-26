@@ -7,9 +7,7 @@ use image::{EncodableLayout, RgbaImage, imageops};
 use crate::png_decoder::PngDecoder;
 
 pub struct TexturesPersistent {
-    pub(crate) textures_by_id: HashMap<u64, Texture>,
-    pub(crate) unregistered_textures: Vec<u64>,
-    pub(crate) next_id: u64,
+    pub(crate) textures_by_id: HashMap<dear_imgui_rs::TextureId, TextureInfo>,
     pub(crate) max_size: u32,
 }
 
@@ -20,10 +18,9 @@ pub struct Textures<'a> {
     pub(crate) queue: &'a wgpu::Queue,
 }
 
-pub struct Texture {
-    pub texture_data: dear_imgui_rs::OwnedTextureData,
-    pub intrinsic_width: f32,
-    pub intrinsic_height: f32,
+pub struct TextureInfo {
+    pub texture: wgpu::Texture,
+    pub handle: dear_imgui_wgpu::ExternalTextureId,
     pub is_downscaled: bool,
 }
 
@@ -47,91 +44,88 @@ impl TexturesPersistent {
     pub fn new(device: &wgpu::Device) -> Self {
         Self {
             textures_by_id: HashMap::new(),
-            unregistered_textures: Vec::new(),
-            next_id: 1,
             max_size: device.limits().max_texture_dimension_2d,
         }
-    }
-    
-    pub fn register_textures(&mut self, imgui: &mut dear_imgui_rs::Context) {
-        for id in self.unregistered_textures.drain(..) {
-            let Some(texture) = self.textures_by_id.get_mut(&id) else { continue };
-            imgui.register_user_texture(&mut texture.texture_data);
-        }
-    }
-    
-    pub(crate) fn new_id(&mut self) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
     }
 }
 
 impl<'a> Textures<'a> {
-    pub fn create_texture_from_bytes(&mut self, width: u32, height: u32, data: &[u8]) -> u64 {
-        let mut texture_data = dear_imgui_rs::OwnedTextureData::new();
-        texture_data.create(dear_imgui_rs::TextureFormat::RGBA32, width, height);
-        texture_data.set_data(data);
-        self.insert_texture(texture_data)
+    pub fn create_texture(&mut self, width: u32, height: u32, data: &[u8]) -> dear_imgui_rs::TextureId {
+        self.create_texture_from_bytes(width, height, data, false)
     }
     
-    pub fn create_texture_from_file(&mut self, path: &Path) -> Result<u64, CreateTextureError> {       
+    fn create_texture_from_bytes(&mut self, width: u32, height: u32, data: &[u8], is_downscaled: bool) -> dear_imgui_rs::TextureId {
+        let texture_size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            texture_size,
+        );
+        
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let handle = self.renderer.register_external_texture(&texture_view).expect("Failed to register texture");
+        let texture_id = handle.texture_id();
+        let texture_info = TextureInfo {
+            texture,
+            handle,
+            is_downscaled,
+        };
+        self.persistent.textures_by_id.insert(texture_id, texture_info);
+        
+        texture_id
+    }
+    
+    pub fn create_texture_from_file(&mut self, path: &Path) -> Result<dear_imgui_rs::TextureId, CreateTextureError> {       
         let (image, intrinsic_width, intrinsic_height) = load_and_scale_image(path, self.persistent.max_size)?;
         let width = image.width();
         let height = image.height();
         let is_downscaled = width != intrinsic_width || height != intrinsic_height;
         
-        let mut texture_data = dear_imgui_rs::OwnedTextureData::new();
-        texture_data.create(dear_imgui_rs::TextureFormat::RGBA32, width, height);
-        texture_data.set_data(image.as_bytes());
-        
-        if let Ok(texture_update) = self.renderer.texture_manager_mut()
-            .update_single_texture(&texture_data, self.device, self.queue)
-        {
-            texture_update.apply_to(&mut texture_data);
-        }
-        
-        let id = self.persistent.new_id();
-        self.persistent.textures_by_id.insert(id, Texture {
-            texture_data,
-            intrinsic_width: intrinsic_width as f32,
-            intrinsic_height: intrinsic_height as f32,
-            is_downscaled,
-        });
-        self.persistent.unregistered_textures.push(id);
-        
+        let id = self.create_texture_from_bytes(width, height, image.as_bytes(), is_downscaled);
         Ok(id)
     }
     
-    pub fn insert_texture(&mut self, mut texture_data: dear_imgui_rs::OwnedTextureData) -> u64 {
-        if let Ok(texture_update) = self.renderer.texture_manager_mut()
-            .update_single_texture(&texture_data, self.device, self.queue)
-        {
-            texture_update.apply_to(&mut texture_data);
-        }
-        
-        let id = self.persistent.new_id();
-        self.persistent.textures_by_id.insert(id, Texture {
-            intrinsic_width: texture_data.width() as f32,
-            intrinsic_height: texture_data.height() as f32,
-            is_downscaled: false,
-            texture_data,
-        });
-        self.persistent.unregistered_textures.push(id);
-        
-        id
-    }
-    
-    pub fn get_texture(&self, id: u64) -> Option<&Texture> {
+    pub fn get_texture_info(&self, id: dear_imgui_rs::TextureId) -> Option<&TextureInfo> {
         self.persistent.textures_by_id.get(&id)
     }
     
-    pub fn get_texture_mut(&mut self, id: u64) -> Option<&mut Texture> {
-        self.persistent.textures_by_id.get_mut(&id)
+    pub fn destroy_texture(&mut self, id: dear_imgui_rs::TextureId) {
+        if let Some(texture_info) = self.persistent.textures_by_id.remove(&id) {
+            let _ = self.renderer.unregister_external_texture(texture_info.handle);
+            texture_info.texture.destroy();
+        }
     }
     
-    pub fn delete_texture(&mut self, id: u64) {
-        self.persistent.textures_by_id.remove(&id);
+    pub fn destroy_all_textures(&mut self) {
+        for (_, texture_info) in self.persistent.textures_by_id.drain() {
+            let _ = self.renderer.unregister_external_texture(texture_info.handle);
+            texture_info.texture.destroy();
+        }
     }
 }
 
@@ -189,13 +183,13 @@ pub fn load_and_scale_image(path: &Path, max_size: u32) -> Result<(RgbaImage, u3
     }
 }
 
-impl Texture {
+impl TextureInfo {
     pub fn width(&self) -> f32 {
-        self.texture_data.width() as f32
+        self.texture.width() as f32
     }
     
     pub fn height(&self) -> f32 {
-        self.texture_data.height() as f32
+        self.texture.height() as f32
     }
     
     pub fn size(&self) -> [f32; 2] {
@@ -203,8 +197,8 @@ impl Texture {
     }
 }
 
-impl<'tex> From<&Texture> for dear_imgui_rs::TextureRef<'tex> {
-    fn from(texture: &Texture) -> Self {
-        texture.texture_data.as_ref().into()
+impl<'tex> From<&TextureInfo> for dear_imgui_rs::TextureRef<'tex> {
+    fn from(texture_info: &TextureInfo) -> Self {
+        texture_info.handle.texture_id().into()
     }
 }

@@ -33,6 +33,7 @@ where
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
         power_preference: wgpu::PowerPreference::HighPerformance,
         force_fallback_adapter: false,
+        apply_limit_buckets: false,
         compatible_surface: Some(&surface),
     }))?;
     
@@ -56,6 +57,7 @@ where
         alpha_mode: wgpu::CompositeAlphaMode::Auto,
         view_formats: Vec::default(),
         desired_maximum_frame_latency: 2,
+        color_space: wgpu::SurfaceColorSpace::Auto,
     };
     surface.configure(&device, &surface_config);
     

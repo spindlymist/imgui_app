@@ -1,4 +1,4 @@
-use dear_imgui_rs::{StyleVar, WindowFlags};
+use dear_imgui_rs::{StyleVar, TextureId, WindowFlags};
 use imgui_app::{Task, dear_imgui_rs::Condition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -7,11 +7,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let imgui = imgui_app::imgui_init(platform, renderer);
     
     let texture_bytes = make_image(64, 64);
-    let mut texture_id = None::<u64>;
+    let mut texture_id = None::<TextureId>;
     
     imgui_app::run(imgui, |ui, mut ex| {
         if texture_id.is_none() {
-            let id = ex.textures.create_texture_from_bytes(64, 64, &texture_bytes);
+            let id = ex.textures.create_texture(64, 64, &texture_bytes);
             texture_id = Some(id);
         }
         
@@ -46,8 +46,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.text("a b c d e f g h i j k l m n o p q r s t u v w x y z");
                 
                 ui.new_line();
-                let texture = ex.textures.get_texture(texture_id.unwrap()).unwrap();
-                ui.image(texture, texture.size());
+                let texture_info = ex.textures.get_texture_info(texture_id.unwrap()).unwrap();
+                ui.get_window_draw_list().set_sampler_nearest();
+                ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
+                ui.same_line();
+                ui.get_window_draw_list().set_sampler_linear();
+                ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
             });
         
         Task::None

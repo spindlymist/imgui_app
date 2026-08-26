@@ -5,14 +5,14 @@ edition = "2024"
 
 [dependencies]
 byteorder-lite = "0.1.0"
-dear-imgui-rs = { version = "0.14.1", features = ["freetype", "multi-viewport"] }
-dear-imgui-sdl3 = { version = "0.14.1", default-features = false }
-dear-imgui-wgpu = "0.14.1"
+dear-imgui-rs = { version = "0.17.0", features = ["freetype", "multi-viewport"] }
+dear-imgui-sdl3 = { version = "0.17.0", default-features = false }
+dear-imgui-wgpu = "0.17.0"
 image = "0.25.10"
 png = "0.18.1"
-pollster = "0.4.0"
+pollster = "1.0.1"
 raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
 sdl3 = { version = "0.18.4", features = ["build-from-source", "static-link", "raw-window-handle"] }
-thiserror = "2.0.18"
-wgpu = "29.0.3"
+thiserror = "2.0.20"
+wgpu = "30.0.1"
