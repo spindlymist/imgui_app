@@ -40,6 +40,12 @@ pub struct Extras<'a> {
     pub textures: Textures<'a>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Task {
+    None,
+    Exit
+}
+
 pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> ImguiState {
     let mut imgui = dear_imgui_rs::Context::create();
     
@@ -91,7 +97,7 @@ pub fn imgui_init(mut platform: PlatformState, mut renderer: RendererState) -> I
 }
 
 pub fn run<F>(imgui: ImguiState, mut build: F) where
-    F: FnMut(&dear_imgui_rs::Ui, Extras)
+    F: FnMut(&dear_imgui_rs::Ui, Extras) -> Task
 {
     use sdl3::event::{Event, WindowEvent};
     
@@ -182,7 +188,10 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                     queue: &renderer.queue,
                 }
             };
-            build(ui, extras);
+            match build(ui, extras) {
+                Task::Exit => break 'main_loop,
+                Task::None => {}
+            };
         }
         
         // Register new textures

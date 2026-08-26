@@ -1,5 +1,5 @@
 use dear_imgui_rs::{StyleVar, WindowFlags};
-use imgui_app::dear_imgui_rs::Condition;
+use imgui_app::{Task, dear_imgui_rs::Condition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let platform = imgui_app::platform_init("Don't forget to update the window title", (1280, 720))?;
@@ -15,11 +15,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             texture_id = Some(id);
         }
         
-        let (width, height) = ex.window.size();
         let _border_size = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
+        
+        if let Some(_menu) = ui.begin_main_menu_bar() {
+            if let Some(_file_menu) = ui.begin_menu("File") {
+                if ui.menu_item("Exit") {
+                    return Task::Exit;
+                }
+            }
+        }
+        
+        let (viewport_width, viewport_height) = ex.window.size();
+        let menu_bar_height = ui.current_font_size() + 2.0 * unsafe { ui.style().frame_padding()[1] };
+        let window_width = viewport_width as f32;
+        let window_height = viewport_height as f32 - menu_bar_height;
         ui.window("Main")
-            .position([0.0, 0.0], Condition::Always)
-            .size([width as f32, height as f32], Condition::Always)
+            .position([0.0, menu_bar_height], Condition::Always)
+            .size([window_width, window_height], Condition::Always)
             .flags(WindowFlags::NO_MOVE | WindowFlags::NO_TITLE_BAR | WindowFlags::NO_RESIZE)
             .build(|| {
                 ui.text("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z");
@@ -38,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.image(texture, texture.size());
             });
         
-        ui.show_demo_window(&mut true);
+        Task::None
     });
     
     Ok(())
