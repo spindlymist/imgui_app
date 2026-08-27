@@ -33,7 +33,7 @@ pub struct Fonts {
 }
 
 pub struct Extras<'a> {
-    pub window: &'a sdl3::video::Window,
+    pub window: &'a mut sdl3::video::Window,
     pub fonts: &'a Fonts,
     pub textures: Textures<'a>,
 }
