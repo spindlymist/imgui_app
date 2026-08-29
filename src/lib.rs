@@ -36,6 +36,7 @@ pub struct Extras<'a> {
     pub window: &'a mut sdl3::video::Window,
     pub fonts: &'a Fonts,
     pub textures: Textures<'a>,
+    pub clipboard: sdl3::clipboard::ClipboardUtil,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,7 +190,8 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
                     renderer: &mut render_backend,
                     device: &renderer.device,
                     queue: &renderer.queue,
-                }
+                },
+                clipboard: platform.video_subsystem.clipboard(),
             };
             match build(ui, extras) {
                 Task::Exit => break 'main_loop,

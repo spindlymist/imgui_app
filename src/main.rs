@@ -9,6 +9,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let texture_bytes = make_image(64, 64);
     let mut texture_id = None::<TextureId>;
     
+    let mut text = String::new();
+    
     imgui_app::run(imgui, |ui, mut ex| {
         if texture_id.is_none() {
             let id = ex.textures.create_texture(64, 64, &texture_bytes);
@@ -52,6 +54,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.same_line();
                 ui.get_window_draw_list().set_sampler_linear();
                 ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
+                
+                ui.input_text("##InputText", &mut text).build();
+                ui.same_line();
+                if ui.button("Copy") {
+                    let _ = ex.clipboard.set_clipboard_text(&text);
+                }
+                ui.same_line();
+                if ui.button("Paste") {
+                    if let Ok(clipboard_text) = ex.clipboard.clipboard_text() {
+                        text = clipboard_text;
+                    }
+                }
             });
         
         Task::None
