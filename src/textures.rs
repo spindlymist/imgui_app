@@ -9,6 +9,7 @@ use crate::png_decoder::PngDecoder;
 pub struct TexturesPersistent {
     pub(crate) textures_by_id: HashMap<dear_imgui_rs::TextureId, TextureInfo>,
     pub(crate) max_size: u32,
+    pub(crate) textures_to_destroy: Vec<TextureInfo>,
 }
 
 pub struct Textures<'a> {
@@ -45,6 +46,20 @@ impl TexturesPersistent {
         Self {
             textures_by_id: HashMap::new(),
             max_size: device.limits().max_texture_dimension_2d,
+            textures_to_destroy: Vec::new(),
+        }
+    }
+    
+    pub fn destroy_all_textures(&mut self, renderer: &mut dear_imgui_wgpu::WgpuRenderer) {
+        let texture_infos = self.textures_by_id.drain().map(|(_key, value)| value);
+        self.textures_to_destroy.extend(texture_infos);
+        self.destroy_pending_textures(renderer);
+    }
+    
+    pub fn destroy_pending_textures(&mut self, renderer: &mut dear_imgui_wgpu::WgpuRenderer) {
+        for texture_info in self.textures_to_destroy.drain(..) {
+            let _ = renderer.unregister_external_texture(texture_info.handle);
+            texture_info.texture.destroy();
         }
     }
 }
@@ -116,15 +131,7 @@ impl<'a> Textures<'a> {
     
     pub fn destroy_texture(&mut self, id: dear_imgui_rs::TextureId) {
         if let Some(texture_info) = self.persistent.textures_by_id.remove(&id) {
-            let _ = self.renderer.unregister_external_texture(texture_info.handle);
-            texture_info.texture.destroy();
-        }
-    }
-    
-    pub fn destroy_all_textures(&mut self) {
-        for (_, texture_info) in self.persistent.textures_by_id.drain() {
-            let _ = self.renderer.unregister_external_texture(texture_info.handle);
-            texture_info.texture.destroy();
+            self.persistent.textures_to_destroy.push(texture_info);
         }
     }
 }

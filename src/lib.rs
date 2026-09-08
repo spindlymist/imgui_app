@@ -266,14 +266,11 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         if reconfigure_after_present {
             renderer.surface.configure(&renderer.device, &renderer.surface_config);
         }
+        
+        textures.destroy_pending_textures(&mut render_backend);
     }
     
-    Textures {
-        persistent: &mut textures,
-        renderer: &mut render_backend,
-        device: &renderer.device,
-        queue: &renderer.queue,
-    }.destroy_all_textures();
+    textures.destroy_all_textures(&mut render_backend);
     
     if let Err(err) = render_backend.shutdown(&mut imgui) {
         eprintln!("Failed to shut down render backend: {err}");
