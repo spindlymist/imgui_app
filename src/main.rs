@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     imgui_app::run(imgui, |ui, mut ex| {
         if texture_id.is_none() {
-            let id = ex.textures.create_texture(64, 64, &texture_bytes);
+            let id = ex.textures.create_texture(64, 64, &texture_bytes, false);
             texture_id = Some(id);
         }
         

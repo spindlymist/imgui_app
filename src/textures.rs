@@ -2,7 +2,7 @@ use std::{
     collections::HashMap, fs, io, path::{Path, PathBuf}
 };
 
-use image::{EncodableLayout, RgbaImage, imageops};
+use image::{EncodableLayout, ImageBuffer, Rgba, RgbaImage, imageops};
 
 use crate::png_decoder::PngDecoder;
 
@@ -65,20 +65,40 @@ impl TexturesPersistent {
 }
 
 impl<'a> Textures<'a> {
-    pub fn create_texture(&mut self, width: u32, height: u32, data: &[u8]) -> dear_imgui_rs::TextureId {
-        self.create_texture_from_bytes(width, height, data, false)
+    pub fn create_texture(
+        &mut self,
+        width: u32,
+        height: u32,
+        data: &[u8],
+        generate_mipmaps: bool
+    ) -> dear_imgui_rs::TextureId {
+        self.create_texture_from_bytes(width, height, data, false, generate_mipmaps)
     }
     
-    fn create_texture_from_bytes(&mut self, width: u32, height: u32, data: &[u8], is_downscaled: bool) -> dear_imgui_rs::TextureId {
+    fn create_texture_from_bytes(
+        &mut self,
+        width: u32,
+        height: u32,
+        data: &[u8],
+        is_downscaled: bool,
+        generate_mipmaps: bool,
+    ) -> dear_imgui_rs::TextureId {
         let texture_size = wgpu::Extent3d {
             width,
             height,
             depth_or_array_layers: 1,
         };
+        let mip_level_count =
+            if generate_mipmaps {
+                u32::min(width, height).ilog2() + 1
+            }
+            else {
+                1
+            };
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             size: texture_size,
-            mip_level_count: 1,
+            mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
@@ -102,6 +122,32 @@ impl<'a> Textures<'a> {
             texture_size,
         );
         
+        if mip_level_count > 1
+            && let Some(image) = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, data)
+        {
+            let mut mip_size = texture_size.clone();
+            for mip_level in 1..mip_level_count {
+                mip_size.width /= 2;
+                mip_size.height /= 2;
+                let mip_image = imageops::resize(&image, mip_size.width, mip_size.height, imageops::FilterType::CatmullRom);
+                self.queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &mip_image.into_raw(),
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(mip_size.width * 4),
+                        rows_per_image: Some(mip_size.height),
+                    },
+                    mip_size
+                );
+            }
+        }
+        
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let handle = self.renderer.register_external_texture(&texture_view).expect("Failed to register texture");
         let texture_id = handle.texture_id();
@@ -115,13 +161,13 @@ impl<'a> Textures<'a> {
         texture_id
     }
     
-    pub fn create_texture_from_file(&mut self, path: &Path) -> Result<dear_imgui_rs::TextureId, CreateTextureError> {       
+    pub fn create_texture_from_file(&mut self, path: &Path, generate_mipmaps: bool) -> Result<dear_imgui_rs::TextureId, CreateTextureError> {       
         let (image, intrinsic_width, intrinsic_height) = load_and_scale_image(path, self.persistent.max_size)?;
         let width = image.width();
         let height = image.height();
         let is_downscaled = width != intrinsic_width || height != intrinsic_height;
         
-        let id = self.create_texture_from_bytes(width, height, image.as_bytes(), is_downscaled);
+        let id = self.create_texture_from_bytes(width, height, image.as_bytes(), is_downscaled, generate_mipmaps);
         Ok(id)
     }
     
