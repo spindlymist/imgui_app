@@ -6,15 +6,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let renderer = imgui_app::renderer_init(&platform.window, platform.window.size())?;
     let imgui = imgui_app::imgui_init(platform, renderer);
     
+    let mut init_textures = true;
     let texture_bytes = make_image(64, 64);
-    let mut texture_id = None::<TextureId>;
+    let mut texture_id = TextureId::null();
+    
+    let rainbow_image = {
+        let rainbow_bytes_encoded = include_bytes!("../rainbow.png");
+        let reader = std::io::Cursor::new(rainbow_bytes_encoded);
+        image::ImageReader::new(reader)
+            .with_guessed_format()?
+            .decode()?
+            .to_rgba8()
+    };
+    let mut rainbow_id = TextureId::null();
     
     let mut text = String::new();
     
     imgui_app::run(imgui, |ui, mut ex| {
-        if texture_id.is_none() {
-            let id = ex.textures.create_texture(64, 64, &texture_bytes, false);
-            texture_id = Some(id);
+        if init_textures {
+            texture_id = ex.textures.create_texture(64, 64, &texture_bytes, false);
+            rainbow_id = ex.textures.create_texture(rainbow_image.width(), rainbow_image.height(), &rainbow_image, false);
+            init_textures = false;
         }
         
         let _border_size = ui.push_style_var(StyleVar::WindowBorderSize(0.0));
@@ -48,12 +60,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.text("a b c d e f g h i j k l m n o p q r s t u v w x y z");
                 
                 ui.new_line();
-                let texture_info = ex.textures.get_texture_info(texture_id.unwrap()).unwrap();
+                let texture_info = ex.textures.get_texture_info(texture_id).unwrap();
                 ui.get_window_draw_list().set_sampler_nearest();
                 ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
+                
                 ui.same_line();
                 ui.get_window_draw_list().set_sampler_linear();
                 ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
+                
+                ui.same_line();
+                let rainbow_texture = ex.textures.get_texture_info(rainbow_id).unwrap();
+                ui.image(rainbow_texture, [rainbow_texture.width(), rainbow_texture.height()]);
                 
                 ui.input_text("##InputText", &mut text).build();
                 ui.same_line();

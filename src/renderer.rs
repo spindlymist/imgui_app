@@ -41,16 +41,9 @@ where
         adapter.request_device(&wgpu::DeviceDescriptor::default())
     )?;
 
-    let surface_caps = surface.get_capabilities(&adapter);
-    let surface_format = surface_caps
-        .formats
-        .iter()
-        .find(|f| f.is_srgb())
-        .copied()
-        .unwrap_or(surface_caps.formats[0]);
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format: surface_format,
+        format: wgpu::TextureFormat::Bgra8Unorm,
         width: size.0,
         height: size.1,
         present_mode: wgpu::PresentMode::Fifo,
