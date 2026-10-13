@@ -46,10 +46,10 @@ where
         format: wgpu::TextureFormat::Bgra8Unorm,
         width: size.0,
         height: size.1,
-        present_mode: wgpu::PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::AutoNoVsync,
         alpha_mode: wgpu::CompositeAlphaMode::Auto,
         view_formats: Vec::default(),
-        desired_maximum_frame_latency: 2,
+        desired_maximum_frame_latency: 1,
         color_space: wgpu::SurfaceColorSpace::Auto,
     };
     surface.configure(&device, &surface_config);

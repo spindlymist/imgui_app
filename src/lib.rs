@@ -17,9 +17,6 @@ pub use dear_imgui_wgpu;
 pub use sdl3;
 pub use wgpu;
 
-const IDLE_FPS: f64 = 60.0;
-const IDLE_FRAME_DURATION: Duration = Duration::from_micros((1_000_000.0 / IDLE_FPS) as u64);
-
 pub struct ImguiState {
     pub platform: PlatformState,
     pub renderer: RendererState,
@@ -109,14 +106,16 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
     let mut textures = TexturesPersistent::new(&renderer.device);
     
     let mut is_in_background = false;
-    let mut last_frame_start = Instant::now();
+    let mut last_frame_start: Option<Instant> = None;
+    let target_frame_duration = calc_target_frame_duration(&platform.video_subsystem);
     
     'main_loop: loop {
-        let mut did_process_event = false;
+        let frame_start = Instant::now();
+        let delta_time = frame_start - last_frame_start.unwrap_or(frame_start);
+        last_frame_start.replace(frame_start);
         
         // Process events
         while let Some(event) = platform.event_pump.poll_event() {
-            did_process_event = true;
             if let Err(err) = platform_backend.process_event(&mut imgui, &event) {
                 eprintln!("Platform backend failed to process event: {err}");
             }
@@ -150,25 +149,17 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         }
         
         // Idle
-        if !did_process_event || is_in_background {
-            let elapsed = Instant::now() - last_frame_start;
-            if elapsed < IDLE_FRAME_DURATION {
-                let sleep_duration = IDLE_FRAME_DURATION - elapsed;
-                std::thread::sleep(sleep_duration);
-            }
-        }
         if is_in_background {
-            last_frame_start = Instant::now();
+            let frame_elapsed = Instant::now() - frame_start;
+            if frame_elapsed < target_frame_duration {
+                spin_sleep::sleep(target_frame_duration - frame_elapsed);
+            }
             continue;
         }
         
         // Prepare the next frame
         {
-            let now = Instant::now();
-            let elapsed = now - last_frame_start;
-            last_frame_start = now;
-            
-            imgui.io_mut().set_delta_time(elapsed.as_secs_f32());
+            imgui.io_mut().set_delta_time(delta_time.as_secs_f32());
             imgui.io_mut().set_display_size([
                 renderer.surface_config.width as f32 * platform.scale,
                 renderer.surface_config.height as f32 * platform.scale,
@@ -268,6 +259,11 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
         }
         
         textures.destroy_pending_textures(&mut render_backend);
+        
+        let frame_elapsed = Instant::now() - frame_start;
+        if frame_elapsed < target_frame_duration {
+            spin_sleep::sleep(target_frame_duration - frame_elapsed);
+        }
     }
     
     textures.destroy_all_textures(&mut render_backend);
@@ -278,6 +274,23 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
     if let Err(err) = platform_backend.shutdown(&mut imgui) {
         eprintln!("Failed to shut down platform backend: {err}");
     }
+}
+
+fn calc_target_frame_duration(video: &sdl3::VideoSubsystem) -> Duration {
+    const DEFAULT_TARGET_FPS: f32 = 60.0;
+    let mut target_fps: Option<f32> = None;
+    
+    let displays = video.displays().unwrap_or(Vec::new());
+    for display in displays {
+        if let Ok(display_mode) = display.get_mode() {
+            let display_fps = display_mode.refresh_rate;
+            if target_fps.is_none_or(|target_fps| display_fps > target_fps) {
+                target_fps.replace(display_fps);
+            }
+        }
+    }
+    
+    Duration::from_secs_f64(1.0 / target_fps.unwrap_or(DEFAULT_TARGET_FPS) as f64)
 }
 
 fn create_fonts(imgui: &mut dear_imgui_rs::Context) -> Fonts {

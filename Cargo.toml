@@ -14,5 +14,6 @@ pollster = "1.0.1"
 raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
 sdl3 = { version = "0.18.4", features = ["build-from-source", "static-link", "raw-window-handle"] }
+spin_sleep = "1.3.3"
 thiserror = "2.0.20"
 wgpu = "30.0.1"

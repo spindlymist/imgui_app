@@ -23,6 +23,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut text = String::new();
     
     imgui_app::run(imgui, |ui, mut ex| {
+        println!("{}", ui.io().framerate());
+        
         if init_textures {
             texture_id = ex.textures.create_texture(64, 64, &texture_bytes, false);
             rainbow_id = ex.textures.create_texture(rainbow_image.width(), rainbow_image.height(), &rainbow_image, false);
@@ -48,6 +50,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .size([window_width, window_height], Condition::Always)
             .flags(WindowFlags::NO_MOVE | WindowFlags::NO_TITLE_BAR | WindowFlags::NO_RESIZE)
             .build(|| {
+                let draw_list = ui.get_window_draw_list();
+                
                 ui.text("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z");
                 ui.text("a b c d e f g h i j k l m n o p q r s t u v w x y z");
                 ui.new_line();
@@ -61,11 +65,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 ui.new_line();
                 let texture_info = ex.textures.get_texture_info(texture_id).unwrap();
-                ui.get_window_draw_list().set_sampler_nearest();
+                draw_list.set_sampler_nearest();
                 ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
                 
                 ui.same_line();
-                ui.get_window_draw_list().set_sampler_linear();
+                draw_list.set_sampler_linear();
                 ui.image(texture_info, [texture_info.width() * 4.0, texture_info.height() * 4.0]);
                 
                 ui.same_line();
@@ -83,6 +87,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         text = clipboard_text;
                     }
                 }
+                
+                let [mouse_x, mouse_y] = ui.mouse_pos();
+                draw_list.add_line_v(mouse_x, mouse_y - 4.0, mouse_y + 4.0, [1.0, 0.0, 0.0, 1.0], 1.0);
+                draw_list.add_line_h(mouse_x - 4.0, mouse_x + 4.0, mouse_y, [1.0, 0.0, 0.0, 1.0], 1.0);
             });
         
         Task::None
