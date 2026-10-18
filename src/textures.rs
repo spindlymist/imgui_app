@@ -180,6 +180,14 @@ impl<'a> Textures<'a> {
             self.persistent.textures_to_destroy.push(texture_info);
         }
     }
+    
+    pub fn upload_new_textures_and_wait(&mut self) {
+        let submission_index = self.queue.submit([]);
+        let _ = self.device.poll(wgpu::PollType::Wait {
+            submission_index: Some(submission_index),
+            timeout: None
+        });
+    }
 }
 
 pub fn load_and_scale_image(path: &Path, max_size: u32) -> Result<(RgbaImage, u32, u32), CreateTextureError> {
