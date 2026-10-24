@@ -196,16 +196,20 @@ pub fn run<F>(imgui: ImguiState, mut build: F) where
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 renderer.surface.configure(&renderer.device, &renderer.surface_config);
+                imgui.end_frame();
                 continue 'main_loop;
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                imgui.end_frame();
                 continue 'main_loop;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
                 eprintln!("Warning: a validation error occurred while getting the current surface texture.");
+                imgui.end_frame();
                 continue 'main_loop;
             }
         };
+        
         let render_target = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = renderer.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
