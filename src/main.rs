@@ -2,7 +2,7 @@ use dear_imgui_rs::{StyleVar, TextureId, WindowFlags};
 use imgui_app::{Task, dear_imgui_rs::Condition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let platform = imgui_app::platform_init("Don't forget to update the window title", (1280, 720))?;
+    let platform = imgui_app::platform_init("Don't forget to update the window title", (1280, 720), false)?;
     let renderer = imgui_app::renderer_init(&platform.window, platform.window.size())?;
     let imgui = imgui_app::imgui_init(platform, renderer);
     

@@ -26,7 +26,11 @@ pub enum PlatformError {
     FailedToAquireEventPump(sdl3::Error),
 }
 
-pub fn platform_init(title: &str, (width, height): (u32, u32)) -> Result<PlatformState, PlatformError> {
+pub fn platform_init(
+    title: &str,
+    (width, height): (u32, u32),
+    start_maximized: bool,
+) -> Result<PlatformState, PlatformError> {
     use sdl3::video::WindowBuildError;
     
     dear_imgui_sdl3::enable_native_ime_ui();
@@ -40,12 +44,16 @@ pub fn platform_init(title: &str, (width, height): (u32, u32)) -> Result<Platfor
     let width_scaled = (scale * width as f32) as u32;
     let height_scaled = (scale * height as f32) as u32;
     
-    let window = video_subsystem.window(title, width_scaled, height_scaled)
-        .position_centered()
+    let mut window_builder = video_subsystem.window(title, width_scaled, height_scaled);
+    window_builder.position_centered()
         .resizable()
         .metal_view()
-        .high_pixel_density()
-        .build()
+        .high_pixel_density();
+    if start_maximized {
+        window_builder.maximized();
+    }
+    
+    let window = window_builder.build()
         .map_err(|err| match err {
             WindowBuildError::SdlError(msg) => PlatformError::WindowCreationFailed(msg),
             WindowBuildError::WidthOverflows(width) => PlatformError::WindowWidthTooLarge(width),
