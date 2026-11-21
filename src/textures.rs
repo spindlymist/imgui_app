@@ -181,7 +181,14 @@ impl<'a> Textures<'a> {
         }
     }
     
-    pub fn upload_new_textures_and_wait(&mut self) {
+    pub fn destroy_texture_now(&mut self, id: dear_imgui_rs::TextureId) {
+        if let Some(texture_info) = self.persistent.textures_by_id.remove(&id) {
+            let _ = self.renderer.unregister_external_texture(texture_info.handle);
+            texture_info.texture.destroy();
+        }
+    }
+    
+    pub fn wait_for_pending_operations(&mut self) {
         let submission_index = self.queue.submit([]);
         let _ = self.device.poll(wgpu::PollType::Wait {
             submission_index: Some(submission_index),
