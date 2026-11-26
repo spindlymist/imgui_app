@@ -1,6 +1,12 @@
+// =============================================================================
+// This file is adapted from the image crate.
+//
+// URL:     https://crates.io/crates/image
+// License: MIT OR Apache-2.0
+// Source:  https://github.com/image-rs/image/blob/98b001da0ddcd91936a716696fba877df910b61d/src/codecs/png.rs
+// =============================================================================
+
 #![allow(dead_code)]
-// Adapted from image crate
-// https://github.com/image-rs/image/blob/98b001da0ddcd91936a716696fba877df910b61d/src/codecs/png.rs
 
 //! Decoding and Encoding of PNG Images
 //!
